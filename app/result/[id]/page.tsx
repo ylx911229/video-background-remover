@@ -1,7 +1,13 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+interface ResultData {
+  taskId: string;
+  originalUrl: string;
+  resultUrl: string;
+}
 
 export default function ResultPage() {
   const params = useParams();
@@ -9,19 +15,38 @@ export default function ResultPage() {
   const taskId = params.id as string;
   
   const [downloading, setDownloading] = useState(false);
+  const [result, setResult] = useState<ResultData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // TODO: 从 API 获取实际的视频 URL
-  const originalVideoUrl = '/placeholder-original.mp4';
-  const processedVideoUrl = '/placeholder-processed.webm';
+  useEffect(() => {
+    const fetchResult = async () => {
+      try {
+        const response = await fetch(`/api/result/${taskId}`);
+        if (!response.ok) throw new Error('获取结果失败');
+        
+        const data = await response.json();
+        setResult(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '获取结果失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchResult();
+  }, [taskId]);
 
   const handleDownload = async (format: 'webm' | 'mp4') => {
+    if (!result) return;
+    
     setDownloading(true);
     try {
-      // TODO: 实际下载逻辑
-      const url = format === 'webm' ? processedVideoUrl : processedVideoUrl;
+      const url = result.resultUrl;
       const link = document.createElement('a');
       link.href = url;
       link.download = `video-no-bg-${taskId}.${format}`;
+      link.target = '_blank';
       link.click();
     } catch (error) {
       alert('下载失败，请重试');
@@ -29,6 +54,30 @@ export default function ResultPage() {
       setDownloading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error || !result) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || '结果不存在'}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -62,18 +111,26 @@ export default function ResultPage() {
           {/* Original */}
           <div>
             <h3 className="text-lg font-semibold mb-3 text-gray-900">原始视频</h3>
-            <div className="bg-gray-100 rounded-xl overflow-hidden aspect-video flex items-center justify-center">
-              <p className="text-gray-500">原始视频预览</p>
-              {/* <video src={originalVideoUrl} controls className="w-full h-full" /> */}
+            <div className="bg-gray-900 rounded-xl overflow-hidden aspect-video">
+              <video 
+                src={result.originalUrl} 
+                controls 
+                className="w-full h-full"
+                playsInline
+              />
             </div>
           </div>
 
           {/* Processed */}
           <div>
             <h3 className="text-lg font-semibold mb-3 text-gray-900">去除背景后</h3>
-            <div className="bg-gray-100 rounded-xl overflow-hidden aspect-video flex items-center justify-center">
-              <p className="text-gray-500">处理后视频预览</p>
-              {/* <video src={processedVideoUrl} controls className="w-full h-full" /> */}
+            <div className="bg-gray-900 rounded-xl overflow-hidden aspect-video">
+              <video 
+                src={result.resultUrl} 
+                controls 
+                className="w-full h-full"
+                playsInline
+              />
             </div>
           </div>
         </div>

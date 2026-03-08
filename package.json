@@ -12,7 +12,8 @@
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-dropzone": "^14.3.5"
+    "react-dropzone": "^14.3.5",
+    "replicate": "^1.4.0"
   },
   "devDependencies": {
     "@types/node": "^22",
