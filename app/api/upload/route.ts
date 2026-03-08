@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Replicate from 'replicate';
+import { uploadToR2, generateFileKey, getSignedUrlFromR2 } from '@/lib/r2';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
@@ -29,32 +30,33 @@ export async function POST(request: NextRequest) {
     // 生成任务 ID
     const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 保存文件到临时目录
-    const uploadDir = join(process.cwd(), 'public', 'uploads');
-    await mkdir(uploadDir, { recursive: true });
-    
+    // 上传到 R2
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const filePath = join(uploadDir, `${taskId}_original${getFileExtension(file.name)}`);
-    await writeFile(filePath, buffer);
+    const fileExtension = getFileExtension(file.name);
+    const r2Key = generateFileKey(`uploads/${taskId}`, fileExtension);
+    
+    await uploadToR2(r2Key, buffer, file.type);
+
+    // 获取预签名 URL（7 天有效）
+    const videoUrl = await getSignedUrlFromR2(r2Key, 7 * 24 * 3600);
 
     // 调用 Replicate API
-    const publicUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/uploads/${taskId}_original${getFileExtension(file.name)}`;
-    
     const prediction = await replicate.predictions.create({
       version: "73d2128a371922d5d1abf0712a1d974be0e4e2358cc1218e4e34714767232bac",
       input: {
-        input_video: publicUrl,
+        input_video: videoUrl,
         output_type: "foreground-mask", // green-screen | alpha-mask | foreground-mask
       },
     });
 
-    // 存储任务信息（实际应该用数据库，这里简化用文件系统）
+    // 存储任务信息
     const taskInfo = {
       taskId,
       predictionId: prediction.id,
       status: 'processing',
-      originalFile: filePath,
+      originalKey: r2Key,
+      originalUrl: videoUrl,
       createdAt: new Date().toISOString(),
     };
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { getSignedUrlFromR2 } from '@/lib/r2';
 
 export async function GET(
   request: NextRequest,
@@ -18,10 +19,13 @@ export async function GET(
       return NextResponse.json({ error: '处理未完成' }, { status: 400 });
     }
 
+    // 生成原始视频的预签名 URL
+    const originalUrl = await getSignedUrlFromR2(taskInfo.originalKey, 3600);
+
     return NextResponse.json({
       taskId: id,
-      originalUrl: taskInfo.originalFile.replace(process.cwd() + '/public', ''),
-      resultUrl: taskInfo.resultUrl,
+      originalUrl,
+      resultUrl: taskInfo.resultUrl, // Replicate 的结果 URL
     });
   } catch (error) {
     console.error('Result fetch error:', error);
